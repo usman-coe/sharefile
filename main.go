@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"html/template"
+	"io"
 	"io/fs"
 	"log"
 	"mime"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -63,8 +65,11 @@ func listFiles(root *os.Root) ([]fileInfo, error) {
 	return files, nil
 }
 
-// isRegular reports whether name is a regular file (not a dir or symlink) inside root.
+// isRegular reports whether name is a regular file (not a dir or symlink) directly inside root.
 func isRegular(root *os.Root, name string) bool {
+	if strings.ContainsAny(name, `/\`) { // PathValue unescapes %2F and %5C
+		return false
+	}
 	fi, err := root.Lstat(name)
 	return err == nil && fi.Mode().IsRegular()
 }
@@ -117,6 +122,17 @@ func newHandler(root *os.Root) http.Handler {
 	return mux
 }
 
+// logOutput opens path for appending. If it can't (e.g. no write access to the
+// exe folder), it returns stderr so the server still runs instead of exiting.
+func logOutput(path string) io.Writer {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		log.Printf("cannot open log %s: %v", path, err)
+		return os.Stderr
+	}
+	return f
+}
+
 func main() {
 	dir := flag.String("dir", "", "folder to share (absolute path, required)")
 	addr := flag.String("addr", ":8080", "listen address")
@@ -124,11 +140,7 @@ func main() {
 	flag.Parse()
 
 	if *logPath != "" {
-		f, err := os.OpenFile(*logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.SetOutput(f)
+		log.SetOutput(logOutput(*logPath))
 	}
 	if !filepath.IsAbs(*dir) {
 		log.Fatalf("-dir must be an absolute path, got %q", *dir)

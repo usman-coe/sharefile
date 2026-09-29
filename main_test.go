@@ -150,6 +150,33 @@ func TestSubdirRejected(t *testing.T) {
 	}
 }
 
+func TestSubfolderPathRejected(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	inner := filepath.Join(dir, "sub", "inner.pdf")
+	writeFile(t, inner, "INNER", time.Now())
+	h := newTestHandler(t, dir)
+
+	for _, target := range []string{"/f/sub%2Finner.pdf", "/f/sub%5Cinner.pdf"} {
+		for _, method := range []string{"GET", "DELETE"} {
+			if rec := do(h, method, target); rec.Code != 404 {
+				t.Fatalf("%s %s: status %d", method, target, rec.Code)
+			}
+		}
+	}
+	if _, err := os.Stat(inner); err != nil {
+		t.Fatal("file in subfolder was deleted")
+	}
+}
+
+func TestLogOutputFallsBackToStderr(t *testing.T) {
+	if w := logOutput(filepath.Join(t.TempDir(), "missing", "x.log")); w != os.Stderr {
+		t.Fatalf("want os.Stderr for unopenable log, got %v", w)
+	}
+}
+
 func TestTraversalBlocked(t *testing.T) {
 	outer := t.TempDir()
 	shared := filepath.Join(outer, "share")
