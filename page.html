@@ -166,7 +166,10 @@ document.addEventListener('change', e => {
 // Search
 $('.search').addEventListener('input', e => {
   const q = e.target.value.trim().toLowerCase();
-  for (const r of rows) r.hidden = q !== '' && !r.dataset.name.toLowerCase().includes(q);
+  for (const r of rows) {
+    r.hidden = q !== '' && !r.dataset.name.toLowerCase().includes(q);
+    if (r.hidden) pick(r).checked = false; // never act on files the user can't see
+  }
   for (const g of groups) g.hidden = !g.querySelector('.row:not([hidden])');
   const none = $('.none');
   none.hidden = rows.length === 0 || visible(rows).length > 0;
