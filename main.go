@@ -3,6 +3,7 @@ package main
 
 import (
 	"archive/zip"
+	"errors"
 	"flag"
 	"html/template"
 	"io"
@@ -169,7 +170,59 @@ func newHandler(root *os.Root) http.Handler {
 		zw.Close()
 		log.Printf("%s zipped %d files", r.RemoteAddr, n)
 	})
+	mux.HandleFunc("POST /f/{name}/rename", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if !isRegular(root, name) {
+			http.NotFound(w, r)
+			return
+		}
+		dst, err := newName(name, r.PostFormValue("to"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Windows Rename silently replaces an existing file, so check first.
+		// SameFile means a case-only rename (a.pdf -> A.pdf), which is fine.
+		if dstInfo, err := root.Lstat(dst); err == nil {
+			srcInfo, err := root.Lstat(name)
+			if err != nil || !os.SameFile(srcInfo, dstInfo) {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				w.WriteHeader(http.StatusConflict)
+				io.WriteString(w, "มีไฟล์ชื่อนี้อยู่แล้ว") // not http.Error: it appends a newline
+				return
+			}
+		}
+		if err := root.Rename(name, dst); err != nil {
+			log.Printf("%s rename %s -> %s failed: %v", r.RemoteAddr, name, dst, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("%s renamed %s -> %s", r.RemoteAddr, name, dst)
+		w.WriteHeader(http.StatusNoContent)
+	})
 	return mux
+}
+
+// newName validates the user-supplied name to for renaming src and keeps src's extension.
+// The error text is Thai and shown to the user as-is.
+func newName(src, to string) (string, error) {
+	to = strings.TrimSpace(to)
+	switch {
+	case to == "":
+		return "", errors.New("กรุณาใส่ชื่อไฟล์")
+	case to == "." || to == "..", strings.HasSuffix(to, "."):
+		return "", errors.New("ชื่อไฟล์ห้ามเป็น . หรือ .. และห้ามลงท้ายด้วยจุด")
+	case strings.ContainsFunc(to, func(r rune) bool { return r < 0x20 || strings.ContainsRune(`<>:"|?*/\`, r) }):
+		return "", errors.New(`ชื่อไฟล์ห้ามมีอักขระ < > : " | ? * / \ หรืออักขระควบคุม`)
+	}
+	ext := filepath.Ext(src)
+	if strings.EqualFold(to, ext) {
+		return "", errors.New("กรุณาใส่ชื่อไฟล์ก่อนนามสกุล")
+	}
+	if !strings.HasSuffix(strings.ToLower(to), strings.ToLower(ext)) {
+		to += ext
+	}
+	return to, nil
 }
 
 // zipName returns the download name for a zip made at t.

@@ -300,3 +300,74 @@ func TestZipNoValidNames(t *testing.T) {
 		}
 	}
 }
+
+func TestNewName(t *testing.T) {
+	ok := map[[2]string]string{
+		{"Scan_0001.pdf", "สรุปวันลา"}:    "สรุปวันลา.pdf",
+		{"Scan_0001.pdf", " รายงาน.PDF "}: "รายงาน.PDF",
+		{"Scan_0001.pdf", "ประชุม 1.2"}:   "ประชุม 1.2.pdf",
+	}
+	for in, want := range ok {
+		if got, err := newName(in[0], in[1]); err != nil || got != want {
+			t.Errorf("newName(%q, %q) = %q, %v; want %q", in[0], in[1], got, err, want)
+		}
+	}
+	bad := []string{"", "   ", "a/b", `a\b`, "a:b", `a"b`, "a<b", "a>b", "a|b", "a?b", "a*b", "a\x01b", ".", "..", "abc.", ".pdf"}
+	for _, to := range bad {
+		if got, err := newName("Scan_0001.pdf", to); err == nil {
+			t.Errorf("newName(%q) = %q, want error", to, got)
+		}
+	}
+}
+
+func TestRename(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	writeFile(t, filepath.Join(dir, "Scan_0001.pdf"), "s", now)
+	writeFile(t, filepath.Join(dir, "taken.pdf"), "t", now)
+	h := newTestHandler(t, dir)
+	read := func(name string) string {
+		b, _ := os.ReadFile(filepath.Join(dir, name))
+		return string(b)
+	}
+
+	if rec := postForm(h, "/f/Scan_0001.pdf/rename", url.Values{"to": {"สแกน #1"}}); rec.Code != 204 {
+		t.Fatalf("rename: status %d", rec.Code)
+	}
+	if read("สแกน #1.pdf") != "s" {
+		t.Fatal("renamed file missing or wrong body")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Scan_0001.pdf")); err == nil {
+		t.Fatal("old name still exists")
+	}
+
+	rec := postForm(h, "/f/"+url.PathEscape("สแกน #1.pdf")+"/rename", url.Values{"to": {"taken"}})
+	if rec.Code != 409 || rec.Body.String() != "มีไฟล์ชื่อนี้อยู่แล้ว" {
+		t.Fatalf("conflict: status %d body %q", rec.Code, rec.Body.String())
+	}
+	if read("สแกน #1.pdf") != "s" || read("taken.pdf") != "t" {
+		t.Fatal("conflict changed files")
+	}
+
+	if rec := postForm(h, "/f/"+url.PathEscape("สแกน #1.pdf")+"/rename", url.Values{"to": {"a/b"}}); rec.Code != 400 {
+		t.Fatalf("invalid to: status %d", rec.Code)
+	}
+	for _, src := range []string{"missing.pdf", "..%2fx"} {
+		if rec := postForm(h, "/f/"+src+"/rename", url.Values{"to": {"ok"}}); rec.Code != 404 {
+			t.Fatalf("%s: status %d", src, rec.Code)
+		}
+	}
+}
+
+func TestRenameCaseOnly(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "a.pdf"), "x", time.Now())
+	h := newTestHandler(t, dir)
+	if rec := postForm(h, "/f/a.pdf/rename", url.Values{"to": {"A"}}); rec.Code != 204 {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 || entries[0].Name() != "A.pdf" {
+		t.Fatalf("entries: %v %v", entries, err)
+	}
+}
