@@ -118,7 +118,7 @@ func TestNewName(t *testing.T) {
 		{"Scan_0001.pdf", " รายงาน.PDF "}:  "รายงาน.PDF",
 		{"Scan_0001.pdf", "ประชุม 1.2"}:    "ประชุม 1.2.pdf",
 	}
-	bad := []string{"", "   ", "a/b", `a\b`, "a:b", `a"b`, "a<b", "a>b", "a|b", "a?b", "a*b", "a\x01b", ".", "..", "abc."}
+	bad := []string{"", "   ", "a/b", `a\b`, "a:b", `a"b`, "a<b", "a>b", "a|b", "a?b", "a*b", "a\x01b", ".", "..", "abc.", ".pdf"}
 	// assert each ok pair maps to its value with nil error; each bad returns non-nil error
 	// note: "abc." → ends in "." → error (Windows strips trailing dots); ".pdf" → empty base → error
 }
