@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="th">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ไฟล์สแกน</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Leelawadee UI","Noto Sans Thai","Sarabun",sans-serif;background:#f6f5f1;color:#1d1d1b;font-size:15px;padding-bottom:4.5rem}
+.top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:.6rem;padding:.6rem 1rem;background:#fff;border-bottom:1px solid #e4e2dc}
+.top h1{margin:0;font-size:17px}
+.search{flex:1;min-width:0;min-height:44px;border:0;border-radius:8px;padding:0 .7rem;background:#f1efe9;font:inherit;color:inherit}
+.grp{display:flex;align-items:center;gap:.2rem;padding:0 .5rem 0 0;font-size:13px;color:#6f6c63}
+.grp h2{margin:0;font-size:inherit;font-weight:600}
+.row{display:flex;align-items:center;gap:.3rem;padding-right:.5rem;background:#fff;border-bottom:1px solid #eeece6}
+.row.sel{background:#fff7e0}
+.cb{display:flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none}
+.cb input{width:20px;height:20px;margin:0;accent-color:#d98e04}
+.ic{width:30px;height:38px;flex:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;background:#fbe9e7;border:1px solid #efc4bd;border-radius:3px;font-size:9px;font-weight:700;color:#c0392b}
+.nm{flex:1;min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;padding:.3rem .4rem;color:inherit;text-decoration:none}
+.fn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:12px;color:#6f6c63}
+.view,.more{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 .4rem;border:0;background:none;font:inherit;font-size:13px;color:#6f6c63;text-decoration:none;cursor:pointer}
+.more{font-size:20px}
+.empty{padding:3rem 1rem;text-align:center;color:#6f6c63}
+.bar{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;background:#1d1d1b;color:#fff}
+.bar[hidden]{display:none}
+.bar .count{flex:1}
+.bar button{min-height:44px;padding:0 .9rem;border:0;border-radius:7px;font:inherit;font-weight:700;background:#d98e04;color:#1d1d1b;cursor:pointer}
+.bar .bar-del{background:#3a3a37;color:#fff}
+</style>
+<header class="top">
+<h1>ไฟล์สแกน</h1>
+<input class="search" type="search" placeholder="ค้นหาชื่อไฟล์…" aria-label="ค้นหาชื่อไฟล์">
+</header>
+<main>
+{{range .}}<section class="group">
+<div class="grp"><label class="cb"><input type="checkbox" class="pick-all" aria-label="เลือกทั้งหมดของ {{.Label}}"></label><h2>{{.Label}}</h2></div>
+{{range .Files}}<div class="row" data-name="{{.Name}}" data-size="{{.Size}}">
+<label class="cb"><input type="checkbox" class="pick" aria-label="เลือก {{.Name}}"></label>
+<span class="ic">PDF</span>
+<a class="nm" href="/f/{{pathEscape .Name}}"><span class="fn">{{.Name}}</span><span class="meta">{{.ModTime.Format "15:04"}} · {{humanSize .Size}}</span></a>
+<a class="view" href="/f/{{pathEscape .Name}}?inline=1" target="_blank" rel="noopener">ดู</a>
+<button class="more" type="button" aria-label="เมนู" onclick="del(this.closest('.row').dataset.name)">⋯</button>
+</div>
+{{end}}</section>
+{{else}}<p class="empty">ยังไม่มีไฟล์สแกน</p>
+{{end}}</main>
+<div class="bar" hidden>
+<span class="count"></span>
+<button class="bar-del" type="button">ลบ</button>
+<button class="bar-zip" type="button">ดาวน์โหลด .zip</button>
+</div>
+<script>
+// Temporary: Task 5 replaces this with the "⋯" menu (rename/delete).
+function del(n) {
+  if (!confirm('ลบ ' + n + ' ?')) return;
+  fetch('/f/' + encodeURIComponent(n), {method: 'DELETE'})
+    .then(r => r.ok ? location.reload() : alert('ลบไม่สำเร็จ: ' + r.status));
+}
+</script>

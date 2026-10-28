@@ -3,6 +3,7 @@ package main
 
 import (
 	"archive/zip"
+	_ "embed"
 	"errors"
 	"flag"
 	"html/template"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -25,27 +27,69 @@ type fileInfo struct {
 	ModTime time.Time
 }
 
-var page = template.Must(template.New("").Funcs(template.FuncMap{"pathEscape": url.PathEscape}).Parse(`<!doctype html>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Scans</title>
-<style>body{font-family:sans-serif;margin:1rem}td,th{padding:.3rem .8rem;text-align:left}</style>
-<h1>Scans</h1>
-{{if .}}<table>
-<tr><th>Name</th><th>Size (bytes)</th><th>Modified</th><th></th></tr>
-{{range .}}<tr>
-<td><a href="/f/{{pathEscape .Name}}">{{.Name}}</a></td>
-<td>{{.Size}}</td>
-<td>{{.ModTime.Format "2006-01-02 15:04:05"}}</td>
-<td><button data-name="{{.Name}}" onclick="del(this.dataset.name)">Delete</button></td>
-</tr>{{end}}
-</table>{{else}}<p>(no files)</p>{{end}}
-<script>
-function del(n) {
-  if (!confirm('Delete ' + n + '?')) return;
-  fetch('/f/' + encodeURIComponent(n), {method: 'DELETE'})
-    .then(r => r.ok ? location.reload() : alert('Delete failed: ' + r.status));
+//go:embed page.html
+var pageHTML string
+
+var page = template.Must(template.New("").Funcs(template.FuncMap{
+	"pathEscape": url.PathEscape,
+	"humanSize":  humanSize,
+}).Parse(pageHTML))
+
+type dayGroup struct {
+	Label string
+	Files []fileInfo
 }
-</script>`))
+
+var thaiMonths = [...]string{"ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."}
+
+// dayLabel names the calendar day of d relative to now, in Thai
+// (Buddhist year only when it differs from now's).
+func dayLabel(d, now time.Time) string {
+	d = d.In(now.Location())
+	y, m, day := d.Date()
+	s := strconv.Itoa(day) + " " + thaiMonths[m-1]
+	ny, nm, nd := now.Date()
+	switch {
+	case y == ny && m == nm && day == nd:
+		return "วันนี้ · " + s
+	case sameDay(d, now.AddDate(0, 0, -1)):
+		return "เมื่อวาน · " + s
+	case y != ny:
+		return s + " " + strconv.Itoa(y+543)
+	}
+	return s
+}
+
+func sameDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
+}
+
+// groupByDay splits newest-first files into one group per local calendar day, keeping order.
+func groupByDay(files []fileInfo, now time.Time) []dayGroup {
+	var groups []dayGroup
+	for _, f := range files {
+		label := dayLabel(f.ModTime, now)
+		if n := len(groups); n > 0 && groups[n-1].Label == label {
+			groups[n-1].Files = append(groups[n-1].Files, f)
+		} else {
+			groups = append(groups, dayGroup{label, []fileInfo{f}})
+		}
+	}
+	return groups
+}
+
+// humanSize formats n as "N B", whole "N KB", or one-decimal "N.N MB".
+func humanSize(n int64) string {
+	switch {
+	case n < 1<<10:
+		return strconv.FormatInt(n, 10) + " B"
+	case n < 1<<20-512: // below this, rounding to KB stays under 1024
+		return strconv.FormatInt((n+512)>>10, 10) + " KB"
+	}
+	return strconv.FormatFloat(float64(n)/(1<<20), 'f', 1, 64) + " MB"
+}
 
 func listFiles(root *os.Root) ([]fileInfo, error) {
 	entries, err := fs.ReadDir(root.FS(), ".")
@@ -84,7 +128,7 @@ func newHandler(root *os.Root) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		page.Execute(w, files)
+		page.Execute(w, groupByDay(files, time.Now()))
 	})
 	mux.HandleFunc("GET /f/{name}", func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")

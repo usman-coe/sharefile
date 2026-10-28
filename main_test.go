@@ -66,8 +66,8 @@ func TestListNewestFirst(t *testing.T) {
 
 func TestListEmpty(t *testing.T) {
 	rec := do(newTestHandler(t, t.TempDir()), "GET", "/")
-	if !strings.Contains(rec.Body.String(), "(no files)") {
-		t.Fatalf("want (no files), got:\n%s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "ยังไม่มีไฟล์สแกน") {
+		t.Fatalf("want empty-state text, got:\n%s", rec.Body.String())
 	}
 }
 
@@ -369,5 +369,45 @@ func TestRenameCaseOnly(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	if err != nil || len(entries) != 1 || entries[0].Name() != "A.pdf" {
 		t.Fatalf("entries: %v %v", entries, err)
+	}
+}
+
+func TestDayLabel(t *testing.T) {
+	now := time.Date(2026, 10, 28, 10, 0, 0, 0, time.Local)
+	for _, c := range []struct {
+		d    time.Time
+		want string
+	}{
+		{time.Date(2026, 10, 28, 9, 31, 0, 0, time.Local), "วันนี้ · 28 ต.ค."},
+		{time.Date(2026, 10, 27, 23, 59, 0, 0, time.Local), "เมื่อวาน · 27 ต.ค."},
+		{time.Date(2026, 10, 15, 11, 20, 0, 0, time.Local), "15 ต.ค."},
+		{time.Date(2025, 8, 17, 8, 0, 0, 0, time.Local), "17 ส.ค. 2568"},
+		{time.Date(2026, 1, 1, 0, 0, 0, 0, time.Local), "1 ม.ค."},
+	} {
+		if got := dayLabel(c.d, now); got != c.want {
+			t.Errorf("dayLabel(%v) = %q, want %q", c.d, got, c.want)
+		}
+	}
+}
+
+func TestHumanSize(t *testing.T) {
+	for n, want := range map[int64]string{0: "0 B", 1023: "1023 B", 688771: "673 KB", 1601809: "1.5 MB"} {
+		if got := humanSize(n); got != want {
+			t.Errorf("humanSize(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+func TestGroupByDay(t *testing.T) {
+	now := time.Date(2026, 10, 28, 10, 0, 0, 0, time.Local)
+	files := []fileInfo{
+		{"c.pdf", 1, time.Date(2026, 10, 28, 9, 31, 0, 0, time.Local)},
+		{"b.pdf", 1, time.Date(2026, 10, 28, 9, 30, 0, 0, time.Local)},
+		{"a.pdf", 1, time.Date(2026, 10, 15, 11, 20, 0, 0, time.Local)},
+	}
+	g := groupByDay(files, now)
+	if len(g) != 2 || g[0].Label != "วันนี้ · 28 ต.ค." || g[1].Label != "15 ต.ค." ||
+		len(g[0].Files) != 2 || len(g[1].Files) != 1 || g[0].Files[0].Name != "c.pdf" || g[0].Files[1].Name != "b.pdf" {
+		t.Fatalf("got %+v", g)
 	}
 }
