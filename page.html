@@ -3,58 +3,299 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ไฟล์สแกน</title>
+<link rel="icon" href="data:,">
 <style>
+:root{--paper:#f6f5f1;--ink:#1d1d1b;--muted:#6f6c63;--rule:#e7e4dc;--amber:#d98e04;--tint:#fff5d9;--red:#b8382a;--col:820px;--gut:max(1rem,calc((100% - var(--col))/2 + 1rem))}
 *{box-sizing:border-box}
-body{margin:0;font-family:"Leelawadee UI","Noto Sans Thai","Sarabun",sans-serif;background:#f6f5f1;color:#1d1d1b;font-size:15px;padding-bottom:4.5rem}
-.top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:.6rem;padding:.6rem 1rem;background:#fff;border-bottom:1px solid #e4e2dc}
-.top h1{margin:0;font-size:17px}
-.search{flex:1;min-width:0;min-height:44px;border:0;border-radius:8px;padding:0 .7rem;background:#f1efe9;font:inherit;color:inherit}
-.grp{display:flex;align-items:center;gap:.2rem;padding:0 .5rem 0 0;font-size:13px;color:#6f6c63}
+[hidden]{display:none!important}
+body{margin:0;font-family:"Leelawadee UI","Noto Sans Thai","Sarabun",sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.5;padding-bottom:6rem;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:.75rem;padding:.6rem var(--gut);background:#fff;border-bottom:1px solid var(--rule)}
+.top h1{margin:0;font-size:18px;font-weight:700;white-space:nowrap}
+.search{flex:1;min-width:0;min-height:44px;border:1px solid transparent;border-radius:8px;padding:0 .8rem;background:#f1efe9;font-size:16px}
+.search:focus{outline:0;border-color:var(--amber);background:#fff}
+main{max-width:var(--col);margin:0 auto;padding:0 1rem}
+.tools{display:flex;align-items:center;margin:.5rem 0 0;padding-right:.5rem;color:var(--muted);font-size:14px}
+.tools .all{display:flex;align-items:center;cursor:pointer}
+.tools .total{margin-left:auto}
+.group{margin-top:.75rem}
+.grp{display:flex;align-items:center;color:var(--muted);font-size:14px}
 .grp h2{margin:0;font-size:inherit;font-weight:600}
-.row{display:flex;align-items:center;gap:.3rem;padding-right:.5rem;background:#fff;border-bottom:1px solid #eeece6}
-.row.sel{background:#fff7e0}
-.cb{display:flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none}
-.cb input{width:20px;height:20px;margin:0;accent-color:#d98e04}
-.ic{width:30px;height:38px;flex:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;background:#fbe9e7;border:1px solid #efc4bd;border-radius:3px;font-size:9px;font-weight:700;color:#c0392b}
-.nm{flex:1;min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;padding:.3rem .4rem;color:inherit;text-decoration:none}
+.list{background:#fff;border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:.25rem;padding-right:.25rem;border-top:1px solid #efede7}
+.row:first-child{border-top:0}
+.row.sel{background:var(--tint);box-shadow:inset 3px 0 0 var(--amber)}
+@media (hover:hover){.row:not(.sel):hover{background:#faf9f6}}
+.cb{display:flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;cursor:pointer}
+.cb input{width:20px;height:20px;margin:0;accent-color:var(--amber);cursor:pointer}
+.ic{width:30px;height:38px;flex:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;margin:.5rem .25rem .5rem 0;background:linear-gradient(225deg,#fff 0 6px,#efc4bd 6px 7px,#fbe9e7 7px);border:1px solid #efc4bd;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.02em;color:var(--red)}
+.ic.other{background:linear-gradient(225deg,#fff 0 6px,#d9d6cd 6px 7px,#f1efe9 7px);border-color:#d9d6cd;color:var(--muted)}
+.nm{flex:1;min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;padding:.35rem .25rem;color:inherit;text-decoration:none;border-radius:4px}
 .fn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.meta{font-size:12px;color:#6f6c63}
-.view,.more{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 .4rem;border:0;background:none;font:inherit;font-size:13px;color:#6f6c63;text-decoration:none;cursor:pointer}
-.more{font-size:20px}
-.empty{padding:3rem 1rem;text-align:center;color:#6f6c63}
-.bar{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:center;gap:.5rem;padding:.6rem 1rem;background:#1d1d1b;color:#fff}
-.bar[hidden]{display:none}
-.bar .count{flex:1}
-.bar button{min-height:44px;padding:0 .9rem;border:0;border-radius:7px;font:inherit;font-weight:700;background:#d98e04;color:#1d1d1b;cursor:pointer}
+.meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.view,.more{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 .6rem;border:0;border-radius:8px;background:none;font-size:15px;color:var(--muted);text-decoration:none;cursor:pointer}
+.view:hover,.more:hover{background:#f1efe9;color:var(--ink)}
+.more{font-size:20px;line-height:1}
+.empty,.none{padding:3rem 1rem;text-align:center;color:var(--muted)}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:3;display:flex;align-items:center;gap:.5rem;padding:.6rem var(--gut);background:var(--ink);color:#fff;animation:up .15s ease-out}
+@keyframes up{from{transform:translateY(100%)}}
+.bar .count{flex:1;min-width:0;line-height:1.3;font-variant-numeric:tabular-nums}
+.bar button{min-height:44px;padding:0 1rem;border:0;border-radius:8px;font-weight:700;background:var(--amber);color:var(--ink);cursor:pointer;white-space:nowrap}
 .bar .bar-del{background:#3a3a37;color:#fff}
+.menu{position:absolute;inset:auto;margin:0;padding:.3rem;min-width:11rem;border:1px solid var(--rule);border-radius:10px;background:#fff;box-shadow:0 8px 24px rgba(29,29,27,.16)}
+.menu a,.menu button{display:flex;align-items:center;width:100%;min-height:44px;padding:0 .9rem;border:0;border-radius:7px;background:none;text-align:left;color:var(--ink);text-decoration:none;cursor:pointer}
+.menu a:hover,.menu button:hover{background:#f1efe9}
+.menu .m-del{color:var(--red)}
+.pv{width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:#3a3a37}
+.pv[open]{display:flex;flex-direction:column}
+.pv::backdrop{background:rgba(29,29,27,.6)}
+.pv-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;padding:.4rem var(--gut);background:var(--ink);color:#fff}
+.pv-name{flex:1 1 12rem;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-pos{color:#b9b5aa;font-size:14px;font-variant-numeric:tabular-nums;margin-right:.5rem}
+.pv-bar button,.pv-bar a{min-height:44px;padding:0 .8rem;border:0;border-radius:8px;background:#3a3a37;color:#fff;text-decoration:none;display:flex;align-items:center;cursor:pointer;white-space:nowrap}
+.pv-bar button:disabled{opacity:.4;cursor:default}
+.pv-bar .pv-dl{background:var(--amber);color:var(--ink);font-weight:700}
+.pv iframe{flex:1;width:100%;border:0;background:#525659}
+@media (max-width:600px){
+  .top{gap:.5rem}
+  main{padding:0}
+  .tools{padding-right:1rem}
+  .grp{padding-right:1rem}
+  .list{border-radius:0;border-left:0;border-right:0}
+  .view{display:none}
+  .pv-name{flex-basis:100%}
+  .bar button{padding:0 .8rem}
+  .pv-bar button,.pv-bar a{flex:1;justify-content:center;padding:0 .4rem}
+}
+@media (prefers-reduced-motion:reduce){.bar{animation:none}}
 </style>
 <header class="top">
 <h1>ไฟล์สแกน</h1>
-<input class="search" type="search" placeholder="ค้นหาชื่อไฟล์…" aria-label="ค้นหาชื่อไฟล์">
+<input class="search" type="search" autocomplete="off" placeholder="ค้นหาชื่อไฟล์…" aria-label="ค้นหาชื่อไฟล์">
 </header>
 <main>
-{{range .}}<section class="group">
-<div class="grp"><label class="cb"><input type="checkbox" class="pick-all" aria-label="เลือกทั้งหมดของ {{.Label}}"></label><h2>{{.Label}}</h2></div>
+{{if .}}<div class="tools"><label class="all"><span class="cb"><input type="checkbox" autocomplete="off" class="pick-global" aria-label="เลือกทั้งหมด"></span>เลือกทั้งหมด</label><span class="total"></span></div>
+{{end}}{{range .}}<section class="group">
+<div class="grp"><label class="cb"><input type="checkbox" autocomplete="off" class="pick-all" aria-label="เลือกทั้งหมดของ {{.Label}}"></label><h2>{{.Label}}</h2></div>
+<div class="list">
 {{range .Files}}<div class="row" data-name="{{.Name}}" data-size="{{.Size}}">
-<label class="cb"><input type="checkbox" class="pick" aria-label="เลือก {{.Name}}"></label>
+<label class="cb"><input type="checkbox" autocomplete="off" class="pick" aria-label="เลือก {{.Name}}"></label>
 <span class="ic">PDF</span>
 <a class="nm" href="/f/{{pathEscape .Name}}"><span class="fn">{{.Name}}</span><span class="meta">{{.ModTime.Format "15:04"}} · {{humanSize .Size}}</span></a>
 <a class="view" href="/f/{{pathEscape .Name}}?inline=1" target="_blank" rel="noopener">ดู</a>
-<button class="more" type="button" aria-label="เมนู" onclick="del(this.closest('.row').dataset.name)">⋯</button>
+<button class="more" type="button" aria-label="เมนูของ {{.Name}}">⋯</button>
 </div>
-{{end}}</section>
+{{end}}</div>
+</section>
 {{else}}<p class="empty">ยังไม่มีไฟล์สแกน</p>
-{{end}}</main>
+{{end}}<p class="none" hidden></p>
+</main>
 <div class="bar" hidden>
 <span class="count"></span>
 <button class="bar-del" type="button">ลบ</button>
 <button class="bar-zip" type="button">ดาวน์โหลด .zip</button>
 </div>
+<div class="menu" popover>
+<a class="m-dl" href="">ดาวน์โหลด</a>
+<button class="m-rn" type="button">เปลี่ยนชื่อ</button>
+<button class="m-del" type="button">ลบ</button>
+</div>
+<dialog class="pv" aria-label="ดูไฟล์">
+<div class="pv-bar">
+<span class="pv-name"></span>
+<button class="pv-prev" type="button">ก่อนหน้า</button>
+<button class="pv-next" type="button">ถัดไป</button>
+<a class="pv-dl" href="">ดาวน์โหลด</a>
+<button class="pv-close" type="button">ปิด</button>
+</div>
+<iframe title="ตัวอย่างไฟล์"></iframe>
+</dialog>
 <script>
-// Temporary: Task 5 replaces this with the "⋯" menu (rename/delete).
-function del(n) {
-  if (!confirm('ลบ ' + n + ' ?')) return;
-  fetch('/f/' + encodeURIComponent(n), {method: 'DELETE'})
-    .then(r => r.ok ? location.reload() : alert('ลบไม่สำเร็จ: ' + r.status));
+const $ = (s, el = document) => el.querySelector(s);
+const rows = [...document.querySelectorAll('.row')];
+const groups = [...document.querySelectorAll('.group')];
+const bar = $('.bar'), menu = $('.menu'), pv = $('.pv');
+const url = n => '/f/' + encodeURIComponent(n);
+const isPdf = n => /\.pdf$/i.test(n);
+const canPreview = n => isPdf(n) && navigator.pdfViewerEnabled !== false;
+const pick = r => $('.pick', r);
+const visible = list => list.filter(r => !r.hidden);
+const selected = () => rows.filter(r => pick(r).checked);
+
+// Port of humanSize in main.go.
+function humanSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576 - 512) return Math.floor((n + 512) / 1024) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
 }
+
+for (const r of rows) {
+  const ext = (r.dataset.name.match(/\.([^.]{1,4})$/) || [, ''])[1].toUpperCase();
+  const ic = $('.ic', r);
+  ic.textContent = ext || 'FILE';
+  ic.classList.toggle('other', ext !== 'PDF');
+}
+
+function syncAll(box, list) {
+  if (!box) return;
+  const v = visible(list), n = v.filter(r => pick(r).checked).length;
+  box.checked = v.length > 0 && n === v.length;
+  box.indeterminate = n > 0 && n < v.length;
+}
+
+function update() {
+  for (const r of rows) r.classList.toggle('sel', pick(r).checked);
+  for (const g of groups) syncAll($('.pick-all', g), [...g.querySelectorAll('.row')]);
+  syncAll($('.pick-global'), rows);
+  const sel = selected();
+  bar.hidden = sel.length === 0;
+  const total = sel.reduce((t, r) => t + Number(r.dataset.size), 0);
+  $('.count', bar).textContent = 'เลือก ' + sel.length + ' ไฟล์ · ' + humanSize(total);
+  $('.bar-zip').textContent = sel.length === 1 ? 'ดาวน์โหลด' : 'ดาวน์โหลด .zip';
+  const total$ = $('.total');
+  if (total$) total$.textContent = visible(rows).length + ' ไฟล์';
+}
+
+document.addEventListener('change', e => {
+  const t = e.target, scope = t.matches('.pick-all') ? t.closest('.group') : t.matches('.pick-global') ? document : null;
+  if (scope) for (const r of visible([...scope.querySelectorAll('.row')])) pick(r).checked = t.checked;
+  update();
+});
+
+// Search
+$('.search').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  for (const r of rows) r.hidden = q !== '' && !r.dataset.name.toLowerCase().includes(q);
+  for (const g of groups) g.hidden = !g.querySelector('.row:not([hidden])');
+  const none = $('.none');
+  none.hidden = rows.length === 0 || visible(rows).length > 0;
+  none.textContent = 'ไม่พบไฟล์ที่ชื่อมีคำว่า “' + e.target.value.trim() + '”';
+  update();
+});
+
+// Download / zip
+$('.bar-zip').addEventListener('click', () => {
+  const sel = selected();
+  if (sel.length === 1) { location.href = url(sel[0].dataset.name); return; }
+  const f = document.createElement('form');
+  f.method = 'post';
+  f.action = '/zip';
+  f.hidden = true;
+  for (const r of sel) {
+    const i = document.createElement('input');
+    i.type = 'hidden';
+    i.name = 'name';
+    i.value = r.dataset.name;
+    f.append(i);
+  }
+  document.body.append(f);
+  f.submit();
+  f.remove();
+});
+
+// Delete
+async function remove(names) {
+  const failed = [];
+  for (const n of names) {
+    try {
+      const r = await fetch(url(n), {method: 'DELETE'});
+      if (!r.ok) failed.push(n + ' (' + r.status + ')');
+    } catch {
+      failed.push(n + ' (เชื่อมต่อไม่ได้)');
+    }
+  }
+  if (failed.length) alert('ลบไม่สำเร็จ:\n' + failed.join('\n'));
+  location.reload();
+}
+$('.bar-del').addEventListener('click', () => {
+  const sel = selected();
+  if (confirm('ลบ ' + sel.length + ' ไฟล์?')) remove(sel.map(r => r.dataset.name));
+});
+
+// "⋯" menu
+let menuRow = null;
+document.addEventListener('click', e => {
+  const b = e.target.closest('.more');
+  if (!b) return;
+  menuRow = b.closest('.row');
+  $('.m-dl', menu).href = url(menuRow.dataset.name);
+  hideMenu();
+  menu.showPopover();
+  const a = b.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(a.right - w, innerWidth - w - 8)) + scrollX + 'px';
+  menu.style.top = (a.bottom + h + 4 > innerHeight ? a.top - h - 4 : a.bottom + 4) + scrollY + 'px';
+});
+const hideMenu = () => menu.matches(':popover-open') && menu.hidePopover();
+$('.m-dl', menu).addEventListener('click', hideMenu);
+$('.m-del', menu).addEventListener('click', () => {
+  hideMenu();
+  const n = menuRow.dataset.name;
+  if (confirm('ลบ ' + n + '?')) remove([n]);
+});
+$('.m-rn', menu).addEventListener('click', async () => {
+  hideMenu();
+  const n = menuRow.dataset.name, dot = n.lastIndexOf('.');
+  const base = dot > 0 ? n.slice(0, dot) : n;
+  const to = prompt('ชื่อใหม่', base);
+  if (to === null || to.trim() === '' || to.trim() === base) return;
+  try {
+    const r = await fetch(url(n) + '/rename', {method: 'POST', body: new URLSearchParams({to: to.trim()})});
+    if (r.status === 204) location.reload();
+    else alert(await r.text());
+  } catch {
+    alert('เชื่อมต่อเครื่องแม่ข่ายไม่ได้');
+  }
+});
+
+// Preview
+let pvRow = null;
+const pvList = () => visible(rows).filter(r => isPdf(r.dataset.name));
+function setFrame(src) { // a fresh iframe each time so the back button isn't filled with iframe history
+  const f = document.createElement('iframe');
+  f.title = 'ตัวอย่างไฟล์';
+  if (src) f.src = src;
+  $('iframe', pv).replaceWith(f);
+}
+function preview(r) {
+  const n = r.dataset.name;
+  if (!canPreview(n)) { location.href = url(n); return; }
+  pvRow = r;
+  const list = pvList(), i = list.indexOf(r);
+  $('.pv-name').textContent = '';
+  $('.pv-name').append(Object.assign(document.createElement('span'), {className: 'pv-pos', textContent: (i + 1) + ' / ' + list.length}), n);
+  $('.pv-prev').disabled = i <= 0;
+  $('.pv-next').disabled = i >= list.length - 1;
+  $('.pv-dl').href = url(n);
+  setFrame(url(n) + '?inline=1');
+  if (!pv.open) { pv.showModal(); history.pushState({pv: 1}, ''); }
+}
+function step(d) {
+  const list = pvList(), next = list[list.indexOf(pvRow) + d];
+  if (next) preview(next);
+}
+$('.pv-prev').addEventListener('click', () => step(-1));
+$('.pv-next').addEventListener('click', () => step(1));
+pv.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'ArrowRight') step(1);
+});
+// Clean up synchronously: Chrome fires the dialog's "close" event late, after a quick reopen.
+function closed() {
+  setFrame('');
+  if (history.state && history.state.pv) history.back();
+}
+$('.pv-close').addEventListener('click', () => { pv.close(); closed(); });
+pv.addEventListener('cancel', closed); // Esc; the dialog closes itself
+addEventListener('popstate', () => { if (pv.open) { pv.close(); setFrame(''); } });
+const narrow = matchMedia('(max-width:600px)');
+document.addEventListener('click', e => {
+  const a = e.target.closest('.view, .nm');
+  if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+  if (a.matches('.nm') && !narrow.matches) return; // desktop: name downloads
+  e.preventDefault();
+  preview(a.closest('.row'));
+});
+
+update();
 </script>
