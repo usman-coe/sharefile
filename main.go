@@ -131,9 +131,14 @@ func newHandler(root *os.Root) http.Handler {
 		}
 		var names []string
 		for _, n := range r.PostForm["name"] {
-			if !slices.Contains(names, n) && isRegular(root, n) {
-				names = append(names, n)
+			if slices.Contains(names, n) {
+				continue
 			}
+			if !isRegular(root, n) {
+				log.Printf("%s zip skipped %q: missing or not a regular file", r.RemoteAddr, n)
+				continue
+			}
+			names = append(names, n)
 		}
 		if len(names) == 0 {
 			http.NotFound(w, r)
