@@ -1,6 +1,9 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -222,5 +225,78 @@ func TestTraversalBlocked(t *testing.T) {
 	}
 	if _, err := os.Stat(secret); err != nil {
 		t.Fatal("secret file was deleted")
+	}
+}
+
+func postForm(h http.Handler, target string, form url.Values) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", target, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestZipName(t *testing.T) {
+	got := zipName(time.Date(2026, 10, 28, 9, 31, 0, 0, time.Local))
+	if got != "scans-20261028-0931.zip" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestZip(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	writeFile(t, filepath.Join(dir, "a.pdf"), "aaa", now)
+	writeFile(t, filepath.Join(dir, "สแกน #1.pdf"), "thai", now)
+	writeFile(t, filepath.Join(dir, "other.pdf"), "x", now)
+	if err := os.Mkdir(filepath.Join(dir, "subdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h := newTestHandler(t, dir)
+
+	rec := postForm(h, "/zip", url.Values{"name": {"a.pdf", "สแกน #1.pdf", "a.pdf", "missing.pdf", `..\secret`, "subdir"}})
+	if rec.Code != 200 {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/zip" {
+		t.Fatalf("Content-Type %q", ct)
+	}
+	_, params, err := mime.ParseMediaType(rec.Header().Get("Content-Disposition"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fn := params["filename"]; !strings.HasPrefix(fn, "scans-") || !strings.HasSuffix(fn, ".zip") {
+		t.Fatalf("filename %q", fn)
+	}
+
+	body := rec.Body.Bytes()
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		got[f.Name] = string(b)
+		if f.Name == "สแกน #1.pdf" && (f.NonUTF8 || f.Flags&0x800 == 0) {
+			t.Fatalf("Thai entry not flagged UTF-8: NonUTF8=%v flags=%#x", f.NonUTF8, f.Flags)
+		}
+	}
+	if len(zr.File) != 2 || got["a.pdf"] != "aaa" || got["สแกน #1.pdf"] != "thai" {
+		t.Fatalf("entries: %d %v", len(zr.File), got)
+	}
+}
+
+func TestZipNoValidNames(t *testing.T) {
+	h := newTestHandler(t, t.TempDir())
+	for _, form := range []url.Values{{}, {"name": {"missing.pdf"}}, {"name": {"../x"}}} {
+		if rec := postForm(h, "/zip", form); rec.Code != 404 {
+			t.Fatalf("form %v: status %d", form, rec.Code)
+		}
 	}
 }

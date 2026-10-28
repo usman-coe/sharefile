@@ -2,6 +2,7 @@
 package main
 
 import (
+	"archive/zip"
 	"flag"
 	"html/template"
 	"io"
@@ -123,8 +124,51 @@ func newHandler(root *os.Root) http.Handler {
 		log.Printf("%s deleted %s", r.RemoteAddr, name)
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("POST /zip", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		var names []string
+		for _, n := range r.PostForm["name"] {
+			if !slices.Contains(names, n) && isRegular(root, n) {
+				names = append(names, n)
+			}
+		}
+		if len(names) == 0 {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": zipName(time.Now())}))
+		zw := zip.NewWriter(w)
+		n := 0
+		for _, name := range names {
+			f, err := root.Open(name)
+			if err != nil {
+				log.Printf("%s zip skipped %s: %v", r.RemoteAddr, name, err)
+				continue
+			}
+			// Create sets the UTF-8 flag for non-ASCII names, so Thai names unzip correctly.
+			zf, err := zw.Create(name)
+			if err == nil {
+				_, err = io.Copy(zf, f)
+			}
+			f.Close()
+			if err != nil {
+				log.Printf("%s zip %s failed: %v", r.RemoteAddr, name, err)
+				break // headers are sent; can't change the status now
+			}
+			n++
+		}
+		zw.Close()
+		log.Printf("%s zipped %d files", r.RemoteAddr, n)
+	})
 	return mux
 }
+
+// zipName returns the download name for a zip made at t.
+func zipName(t time.Time) string { return t.Format("scans-20060102-1504.zip") }
 
 // logOutput opens path for appending. If it can't (e.g. no write access to the
 // exe folder), it returns stderr so the server still runs instead of exiting.
