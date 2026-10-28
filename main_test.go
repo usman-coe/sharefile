@@ -82,6 +82,9 @@ func TestDownload(t *testing.T) {
 	if cd := rec.Header().Get("Content-Disposition"); !strings.HasPrefix(cd, "attachment") {
 		t.Fatalf("Content-Disposition %q", cd)
 	}
+	if cc := rec.Header().Get("Cache-Control"); cc != "no-cache" {
+		t.Fatalf("Cache-Control %q", cc)
+	}
 	if rec := do(newTestHandler(t, dir), "GET", "/f/missing.pdf"); rec.Code != 404 {
 		t.Fatalf("missing file: status %d", rec.Code)
 	}
@@ -292,6 +295,44 @@ func TestZip(t *testing.T) {
 	}
 }
 
+func TestZipEntryModTime(t *testing.T) {
+	dir := t.TempDir()
+	mod := time.Date(2026, 3, 4, 10, 20, 30, 0, time.Local)
+	writeFile(t, filepath.Join(dir, "a.pdf"), "aaa", mod)
+	rec := postForm(newTestHandler(t, dir), "/zip", url.Values{"name": {"a.pdf"}})
+	body := rec.Body.Bytes()
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil || len(zr.File) != 1 {
+		t.Fatalf("zip: %v, %d entries", err, len(zr.File))
+	}
+	if got := zr.File[0].Modified; got.Sub(mod).Abs() > 2*time.Second {
+		t.Fatalf("Modified %v, want %v", got, mod)
+	}
+}
+
+func TestCrossSitePostRejected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "a.pdf"), "x", time.Now())
+	h := newTestHandler(t, dir)
+	post := func(site string) int {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/f/a.pdf/rename", strings.NewReader("to=b"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Sec-Fetch-Site", site)
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := post("cross-site"); code != 403 {
+		t.Fatalf("cross-site: status %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "a.pdf")); err != nil {
+		t.Fatal("cross-site request changed files")
+	}
+	if code := post("same-origin"); code != 204 {
+		t.Fatalf("same-origin: status %d", code)
+	}
+}
+
 func TestZipNoValidNames(t *testing.T) {
 	h := newTestHandler(t, t.TempDir())
 	for _, form := range []url.Values{{}, {"name": {"missing.pdf"}}, {"name": {"../x"}}} {
@@ -312,7 +353,10 @@ func TestNewName(t *testing.T) {
 			t.Errorf("newName(%q, %q) = %q, %v; want %q", in[0], in[1], got, err, want)
 		}
 	}
-	bad := []string{"", "   ", "a/b", `a\b`, "a:b", `a"b`, "a<b", "a>b", "a|b", "a?b", "a*b", "a\x01b", ".", "..", "abc.", ".pdf"}
+	if got, err := newName("Scan_0001.pdf", strings.Repeat("ก", 150)); err != nil || got != strings.Repeat("ก", 150)+".pdf" {
+		t.Errorf("150 runes: %q, %v", got, err)
+	}
+	bad := []string{strings.Repeat("ก", 201), "", "   ", "a/b", `a\b`, "a:b", `a"b`, "a<b", "a>b", "a|b", "a?b", "a*b", "a\x01b", ".", "..", "abc.", ".pdf"}
 	for _, to := range bad {
 		if got, err := newName("Scan_0001.pdf", to); err == nil {
 			t.Errorf("newName(%q) = %q, want error", to, got)

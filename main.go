@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type fileInfo struct {
@@ -152,6 +153,8 @@ func newHandler(root *os.Root) http.Handler {
 			disp = "inline" // only PDFs render in-browser; anything else always downloads
 		}
 		w.Header().Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": name}))
+		// Scanners reuse names, so make browsers revalidate instead of guessing from Last-Modified.
+		w.Header().Set("Cache-Control", "no-cache")
 		// ServeContent, not ServeFileFS: the latter redirects names ending in index.html.
 		http.ServeContent(w, r, name, fi.ModTime(), f)
 	})
@@ -199,15 +202,29 @@ func newHandler(root *os.Root) http.Handler {
 				log.Printf("%s zip skipped %s: %v", r.RemoteAddr, name, err)
 				continue
 			}
-			// Create sets the UTF-8 flag for non-ASCII names, so Thai names unzip correctly.
-			zf, err := zw.Create(name)
+			fi, err := f.Stat()
+			if err != nil {
+				f.Close()
+				log.Printf("%s zip skipped %s: %v", r.RemoteAddr, name, err)
+				continue
+			}
+			fh, err := zip.FileInfoHeader(fi)
+			if err != nil {
+				f.Close()
+				log.Printf("%s zip skipped %s: %v", r.RemoteAddr, name, err)
+				continue
+			}
+			fh.Name = name // CreateHeader sets the UTF-8 flag for non-ASCII names, so Thai names unzip correctly
+			fh.Method = zip.Deflate
+			zf, err := zw.CreateHeader(fh)
 			if err == nil {
 				_, err = io.Copy(zf, f)
 			}
 			f.Close()
 			if err != nil {
 				log.Printf("%s zip %s failed: %v", r.RemoteAddr, name, err)
-				break // headers are sent; can't change the status now
+				// zw.Close would write a valid-looking zip holding a truncated file; abort so the download fails.
+				panic(http.ErrAbortHandler)
 			}
 			n++
 		}
@@ -244,7 +261,8 @@ func newHandler(root *os.Root) http.Handler {
 		log.Printf("%s renamed %s -> %s", r.RemoteAddr, name, dst)
 		w.WriteHeader(http.StatusNoContent)
 	})
-	return mux
+	// Form-encoded POSTs skip CORS preflight, so refuse cross-site ones.
+	return http.NewCrossOriginProtection().Handler(mux)
 }
 
 // newName validates the user-supplied name to for renaming src and keeps src's extension.
@@ -265,6 +283,9 @@ func newName(src, to string) (string, error) {
 	}
 	if !strings.HasSuffix(strings.ToLower(to), strings.ToLower(ext)) {
 		to += ext
+	}
+	if utf8.RuneCountInString(to) > 200 {
+		return "", errors.New("ชื่อไฟล์ยาวเกินไป (ไม่เกิน 200 ตัวอักษร)")
 	}
 	return to, nil
 }
