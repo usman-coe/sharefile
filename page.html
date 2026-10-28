@@ -116,6 +116,9 @@ const $ = (s, el = document) => el.querySelector(s);
 const rows = [...document.querySelectorAll('.row')];
 const groups = [...document.querySelectorAll('.group')];
 const bar = $('.bar'), menu = $('.menu'), pv = $('.pv');
+// Without the Popover API (iOS 16 and older) the menu is an absolutely positioned div toggled with `hidden`.
+const hasPopover = 'showPopover' in HTMLElement.prototype;
+if (!hasPopover) menu.hidden = true;
 const url = n => '/f/' + encodeURIComponent(n);
 const isPdf = n => /\.pdf$/i.test(n);
 const canPreview = n => isPdf(n) && navigator.pdfViewerEnabled !== false;
@@ -220,16 +223,16 @@ $('.bar-del').addEventListener('click', () => {
 let menuRow = null;
 document.addEventListener('click', e => {
   const b = e.target.closest('.more');
-  if (!b) return;
+  if (!b) { if (!hasPopover && !e.target.closest('.menu')) hideMenu(); return; } // the popover closes itself
   menuRow = b.closest('.row');
   $('.m-dl', menu).href = url(menuRow.dataset.name);
   hideMenu();
-  menu.showPopover();
+  if (hasPopover) menu.showPopover(); else menu.hidden = false;
   const a = b.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
   menu.style.left = Math.max(8, Math.min(a.right - w, innerWidth - w - 8)) + scrollX + 'px';
   menu.style.top = (a.bottom + h + 4 > innerHeight ? a.top - h - 4 : a.bottom + 4) + scrollY + 'px';
 });
-const hideMenu = () => menu.matches(':popover-open') && menu.hidePopover();
+const hideMenu = () => hasPopover ? menu.matches(':popover-open') && menu.hidePopover() : menu.hidden = true;
 $('.m-dl', menu).addEventListener('click', hideMenu);
 $('.m-del', menu).addEventListener('click', () => {
   hideMenu();
