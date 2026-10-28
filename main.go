@@ -101,7 +101,11 @@ func newHandler(root *os.Root) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
+		disp := "attachment"
+		if r.URL.Query().Get("inline") == "1" && strings.EqualFold(filepath.Ext(name), ".pdf") {
+			disp = "inline" // only PDFs render in-browser; anything else always downloads
+		}
+		w.Header().Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": name}))
 		// ServeContent, not ServeFileFS: the latter redirects names ending in index.html.
 		http.ServeContent(w, r, name, fi.ModTime(), f)
 	})

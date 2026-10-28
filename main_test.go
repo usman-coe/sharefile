@@ -114,6 +114,33 @@ func TestSpecialFilename(t *testing.T) {
 	}
 }
 
+func TestInlinePDF(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "a.PDF"), "%PDF", time.Now())
+
+	rec := do(newTestHandler(t, dir), "GET", "/f/a.PDF?inline=1")
+	if rec.Code != 200 {
+		t.Fatalf("status %d", rec.Code)
+	}
+	disp, params, err := mime.ParseMediaType(rec.Header().Get("Content-Disposition"))
+	if err != nil || disp != "inline" || params["filename"] != "a.PDF" {
+		t.Fatalf("disposition %q filename %q err %v", disp, params["filename"], err)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/pdf" {
+		t.Fatalf("content-type %q", ct)
+	}
+}
+
+func TestInlineNonPDFStaysAttachment(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "index.html"), "page", time.Now())
+
+	rec := do(newTestHandler(t, dir), "GET", "/f/index.html?inline=1")
+	if cd := rec.Header().Get("Content-Disposition"); !strings.HasPrefix(cd, "attachment") {
+		t.Fatalf("Content-Disposition %q", cd)
+	}
+}
+
 func TestDelete(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "a.pdf")
